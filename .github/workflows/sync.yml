@@ -1,0 +1,83 @@
+name: Nightly sync
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC nightly
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "list-clients shows client matches; dry-run prints planned changes; live writes to Lifecycle Manager"
+        type: choice
+        options: [list-clients, dry-run, live]
+        default: dry-run
+
+# Never run two syncs at once; they'd race on state.json and could double-create.
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write # to commit state/state.json after live runs
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Scheduled runs stay in dry-run until the repo variable SYNC_LIVE is set to "true".
+      - name: Decide mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            mode="${{ inputs.mode }}"
+          elif [ "${{ vars.SYNC_LIVE }}" = "true" ]; then
+            mode=live
+          else
+            mode=dry-run
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Running in $mode mode"
+
+      - name: Check API key
+        env:
+          SCALEPAD_API_KEY: ${{ secrets.SCALEPAD_API_KEY }}
+        run: |
+          if [ -z "$SCALEPAD_API_KEY" ]; then
+            echo "::error::Add your ScalePad API key as a repository secret named SCALEPAD_API_KEY (Settings → Secrets and variables → Actions). See README step 2."
+            exit 1
+          fi
+
+      - name: Sync
+        env:
+          SCALEPAD_API_KEY: ${{ secrets.SCALEPAD_API_KEY }}
+        run: |
+          case "${{ steps.mode.outputs.mode }}" in
+            live) python -m cmlm --live ;;
+            list-clients) python -m cmlm --list-clients ;;
+            *) python -m cmlm ;;
+          esac
+
+      - name: Commit state
+        if: always() && steps.mode.outputs.mode == 'live'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/state.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update sync state [skip ci]"
+          # main may have moved while the sync ran (code pushes, re-runs of older commits),
+          # so rebase the state commit onto it before pushing.
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep $((attempt * 5))
+          done
+          exit 1

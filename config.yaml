@@ -1,0 +1,54 @@
+# ControlMap → Lifecycle Manager sync settings.
+# Tip: run the "list-clients" mode first to see your clients and how they match.
+
+# ScalePad API region: us | eu | ca | au
+region: us
+
+# Which clients to sync.
+#
+#   clients: all          every ControlMap client that has a matching Lifecycle Manager client
+#
+#   clients:              only these ControlMap clients (names are case-insensitive)
+#     - Contoso Ltd
+#     - Fabrikam Inc
+#
+# ControlMap and Lifecycle Manager share client IDs, so matching is automatic. If a client
+# shows "no Lifecycle Manager client" in list-clients, pin it to the right LM client by ID.
+# The ID is in the client's Lifecycle Manager URL: lm.scalepad.com/clients/<this-part>/...
+#
+#     - name: Contoso Ltd
+#       lifecycle_manager_id: 00000000-0000-0000-0000-000000000000
+#
+# Start with one or two clients, check a dry run, then widen it.
+clients:
+  - Replace With Your ControlMap Client Name
+
+# With "clients: all", skip these ControlMap clients.
+exclude: []
+
+# What to do with an Initiative when its Action Item is deleted in ControlMap,
+# or moves to one of the skip_statuses below:
+#   decline   set the Initiative's status to Declined (default, keeps any edits)
+#   delete    permanently delete the Initiative
+#   ignore    leave the Initiative as it is
+on_removed: decline
+
+mapping:
+  # ControlMap status -> Lifecycle Manager status.
+  # LM statuses: Draft, New, Proposed, Approved, InProgress, OnHold, Declined, Completed
+  status:
+    Not Started: Proposed
+    In Progress: InProgress
+    Review: InProgress
+    Completed: Completed
+
+  # ControlMap statuses that never get an Initiative.
+  skip_statuses:
+    - Not Applicable
+
+  # ControlMap priority -> Lifecycle Manager priority (None, Low, Medium, High).
+  priority:
+    Critical: High
+    High: High
+    Medium: Medium
+    Low: Low
