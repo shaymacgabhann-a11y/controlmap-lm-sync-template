@@ -20,7 +20,7 @@ def item(**overrides):
         "weakness_description": "Admins can sign in without MFA.",
         "corrective_action": "Enforce conditional access.",
         "priority": "Critical",
-        "planned_end_date": "2026-11-15T00:00:00Z",
+        "planned_completion_date": "2026-11-15T00:00:00Z",
         "effort_in_hours": 6,
         "cost": 1250.5,
         "currency": "USD",
@@ -107,7 +107,15 @@ def test_status_and_priority_mapping():
 
 
 def test_quarter_falls_back_to_roadmap_horizon():
-    i = item(planned_end_date=None, roadmap="6 months", created_at="2026-10-07T00:00:00Z")
+    i = item(planned_completion_date=None, roadmap="6 months", created_at="2026-10-07T00:00:00Z")
+    assert mapping.target_quarter(i, date(2026, 10, 7)) == {"year": 2027, "quarter": 2}
+
+
+def test_quarter_prefers_planned_completion_over_start_and_due():
+    i = item(planned_completion_date="2027-02-01", planned_start_date="2026-08-01", due_date="2026-12-01")
+    assert mapping.target_quarter(i, date(2026, 10, 7)) == {"year": 2027, "quarter": 1}
+    # The documented create-API name still works.
+    i = item(planned_completion_date=None, planned_end_date="2027-05-01")
     assert mapping.target_quarter(i, date(2026, 10, 7)) == {"year": 2027, "quarter": 2}
 
 

@@ -93,8 +93,9 @@ def budget_label(code: str) -> str:
 
 
 def target_quarter(item: dict, today: date) -> dict | None:
-    """Pick the roadmap quarter: planned end date, else due date, else roadmap horizon."""
-    for key in ("planned_end_date", "due_date", "planned_start_date"):
+    """Pick the roadmap quarter: planned completion date, else due date, else start date, else roadmap horizon."""
+    # ControlMap returns planned_completion_date; its create docs call it planned_end_date.
+    for key in ("planned_completion_date", "planned_end_date", "due_date", "planned_start_date"):
         d = _date(item.get(key))
         if d:
             return _quarter(d)

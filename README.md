@@ -94,7 +94,7 @@ Edit the `cron` line in [`.github/workflows/sync.yml`](.github/workflows/sync.ym
 | Weakness description, corrective action, implementation notes | Executive summary |
 | Status | Status (via `mapping.status`) |
 | Priority | Priority (via `mapping.priority`) |
-| Planned end date, else due date, else planned start date, else roadmap (3/6/12 months) | Calendar quarter on the roadmap |
+| Planned completion date, else due date, else planned start date, else roadmap (3/6/12 months) | Calendar quarter on the roadmap |
 | Effort in hours | Estimated hours |
 | Cost | One-time investment line `ControlMap AI-12 remediation` (other budget lines are kept) |
 
