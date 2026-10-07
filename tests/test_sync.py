@@ -296,4 +296,4 @@ def test_shipped_config_is_valid():
     from pathlib import Path
 
     cfg = settings.load(Path(__file__).resolve().parent.parent / "config.yaml")
-    assert cfg.on_removed == "decline" and cfg.clients
+    assert cfg.on_removed == "decline" and (cfg.sync_all or cfg.clients)
