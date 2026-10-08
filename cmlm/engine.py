@@ -9,6 +9,7 @@ from . import mapping
 from .clients import ClientPair
 from .platforms import ControlMap, LifecycleManager
 from .settings import Settings
+from .users import UserDirectory
 
 log = logging.getLogger(__name__)
 
@@ -20,10 +21,13 @@ class StepsFailed(Exception):
 
 
 class Syncer:
-    def __init__(self, cm: ControlMap, lm: LifecycleManager, state: dict, settings: Settings | None = None):
+    def __init__(self, cm: ControlMap, lm: LifecycleManager, state: dict, settings: Settings | None = None,
+                 users: UserDirectory | None = None):
         self.cm = cm
         self.lm = lm
         self.settings = settings or Settings()
+        self.users = users  # None = don't manage assignees
+        self.unmatched_people: dict[str, str] = {}
         # state["items"]: "<cm client id>:<action item id>" -> {initiative_id, fingerprint, code, ...}
         self.items: dict = state.setdefault("items", {})
         self.stats: Counter = Counter()
@@ -87,6 +91,7 @@ class Syncer:
                 self.stats["created"] += 1
                 self._apply(initiative_id, spec, existing_budget=[], created=True)
                 self._record(key, initiative_id, spec, item)
+                self._sync_assignee(key, item)
                 return
 
         initiative = initiatives.get(entry["initiative_id"])
@@ -98,6 +103,7 @@ class Syncer:
 
         if entry.get("fingerprint") == spec.fingerprint():
             self.stats["unchanged"] += 1
+            self._sync_assignee(key, item)
             return
 
         currency = ((initiative.get("budget") or {}).get("currency") or {}).get("code_alpha")
@@ -105,6 +111,33 @@ class Syncer:
         self._record(key, entry["initiative_id"], spec, item)
         log.info("%s: updated Initiative %s", item["code"], entry["initiative_id"])
         self.stats["updated"] += 1
+        self._sync_assignee(key, item)
+
+    def _sync_assignee(self, key: str, item: dict) -> None:
+        """Assign the Initiative to the LM user matching the ControlMap responsible person.
+
+        Tracked apart from the fingerprint: it's only pushed when the matched user differs
+        from the one we last set, so a manual reassignment in LM sticks until the
+        responsible person changes in ControlMap.
+        """
+        if self.users is None:
+            return
+        person = item.get("responsible_person") or item.get("owner")
+        user_id, how = self.users.resolve(person)
+        if user_id is None:
+            label = (person.get("email") or person.get("name")) if isinstance(person, dict) else person
+            if label and label not in self.unmatched_people:
+                self.unmatched_people[label] = how
+                log.warning("%s: can't assign: %s", item["code"], how)
+            self.stats["assignee_unmatched"] += 1
+            return
+        entry = self.items[key]
+        if entry.get("assigned_user_id") == user_id:
+            return
+        self.lm.set_assignee(entry["initiative_id"], user_id)
+        entry["assigned_user_id"] = user_id
+        log.info("%s: assigned Initiative %s (matched by %s)", item["code"], entry["initiative_id"], how)
+        self.stats["assigned"] += 1
 
     def _apply(self, initiative_id: str, spec: mapping.InitiativeSpec, existing_budget: list[dict], created=False, currency: str | None = None) -> None:
         """Run every update step even if some fail, then raise one error listing the failures.
@@ -168,7 +201,9 @@ class Syncer:
         self.stats["declined"] += 1
 
     def _record(self, key: str, initiative_id: str, spec: mapping.InitiativeSpec, item: dict) -> None:
+        previous = self.items.get(key) or {}
         self.items[key] = {
+            "assigned_user_id": previous.get("assigned_user_id"),
             "initiative_id": initiative_id,
             "code": spec.code,
             "status": spec.status,

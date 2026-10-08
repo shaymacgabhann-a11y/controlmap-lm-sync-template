@@ -52,3 +52,15 @@ mapping:
     High: High
     Medium: Medium
     Low: Low
+
+# Initiative owner: assign each Initiative to the Lifecycle Manager user who matches the
+# Action Item's responsible person in ControlMap, matched by email, then by name if exactly
+# one LM user has that name. Unmatched people are listed in each run's summary.
+# A manual reassignment in Lifecycle Manager sticks until the responsible person changes
+# in ControlMap.
+assignees:
+  enabled: true
+  # Pin people whose email differs between the products, or who share a name with
+  # another LM user. ControlMap email (or name): Lifecycle Manager email
+  overrides: {}
+  #   jane.doe@yourmsp.com: jdoe@yourmsp.com

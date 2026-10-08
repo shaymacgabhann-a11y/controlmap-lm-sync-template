@@ -50,6 +50,8 @@ class Settings:
     exclude: set[str] = field(default_factory=set)
     on_removed: str = "decline"
     mapping: MappingSettings = field(default_factory=MappingSettings)
+    assign_users: bool = True
+    assignee_overrides: dict[str, str] = field(default_factory=dict)
 
 
 def load(path: Path) -> Settings:
@@ -90,6 +92,13 @@ def parse(raw: dict) -> Settings:
         s.mapping.priority = _validated_map(m["priority"], LM_PRIORITIES, "mapping.priority")
     if "skip_statuses" in m:
         s.mapping.skip_statuses = {str(x).lower() for x in m["skip_statuses"] or []}
+    a = raw.get("assignees") or {}
+    _check(isinstance(a, dict), "assignees must be a section with 'enabled' and/or 'overrides'")
+    s.assign_users = bool(a.get("enabled", True))
+    overrides = a.get("overrides") or {}
+    _check(isinstance(overrides, dict), "assignees.overrides must map a ControlMap email or name to a Lifecycle Manager email")
+    s.assignee_overrides = {str(k): str(v) for k, v in overrides.items()}
+
     for status in s.mapping.status.keys() | s.mapping.skip_statuses:
         _check(status in CM_STATUSES, f"Unknown ControlMap status {status!r}; expected one of {sorted(CM_STATUSES)}")
     return s

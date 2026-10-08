@@ -42,6 +42,13 @@ class LifecycleManager:
         rows = self.client.paginate_get("/lifecycle-manager/v1/clients")
         return {r["client"]["client_id"]: r["client"]["display_name"] for r in rows}
 
+    def users(self) -> list[dict]:
+        return self.client.get("/lifecycle-manager/v1/users").get("data", [])
+
+    def set_assignee(self, initiative_id: str, user_id: str) -> None:
+        if not self._skip("assign", initiative_id, user_id):
+            self.client.put(f"/lifecycle-manager/v1/initiatives/{initiative_id}/assigned-user", {"assigned_user_id": user_id})
+
     def initiatives(self, client_id: str) -> list[dict]:
         return list(
             self.client.paginate_get(

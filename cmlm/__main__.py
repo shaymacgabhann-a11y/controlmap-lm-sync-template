@@ -14,6 +14,7 @@ from . import settings as settings_mod
 from .api import ApiError, ScalePadClient
 from .engine import Syncer
 from .platforms import ControlMap, LifecycleManager
+from .users import UserDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("cmlm")
@@ -47,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         cm_clients, lm_clients = cm.clients(), lm.clients()
+        users = UserDirectory(lm.users(), settings.assignee_overrides) if settings.assign_users else None
     except ApiError as exc:
         log.error("Could not list clients: %s", exc)
         if exc.status in (401, 403):
@@ -67,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     state = json.loads(args.state.read_text()) if args.state.exists() else {}
-    syncer = Syncer(cm, lm, state, settings)
+    syncer = Syncer(cm, lm, state, settings, users)
 
     log.info("Mode: %s, %d client(s), on_removed=%s", "LIVE" if args.live else "DRY RUN (no writes)", len(pairs), settings.on_removed)
     try:
@@ -113,7 +115,7 @@ def _print_client_report(rows: list[client_matching.ClientRow]) -> None:
 
 
 def _report(syncer: Syncer, live: bool, clients: int, problems: list[str]) -> None:
-    order = ["created", "updated", "declined", "deleted", "left_alone", "unchanged", "skipped", "missing_in_lm", "errors"]
+    order = ["created", "updated", "assigned", "assignee_unmatched", "declined", "deleted", "left_alone", "unchanged", "skipped", "missing_in_lm", "errors"]
     rows = [(k, syncer.stats.get(k, 0)) for k in order]
     log.info("Summary (%d clients): %s", clients, ", ".join(f"{k}={v}" for k, v in rows))
 
@@ -124,6 +126,9 @@ def _report(syncer: Syncer, live: bool, clients: int, problems: list[str]) -> No
         lines += [f"| {k} | {v} |" for k, v in rows]
         if problems:
             lines += ["", "### Clients skipped", *[f"- {p}" for p in problems]]
+        if syncer.unmatched_people:
+            lines += ["", "### Responsible people not matched to a Lifecycle Manager user",
+                      *[f"- {who}: {why}" for who, why in syncer.unmatched_people.items()]]
         if syncer.errors:
             lines += ["", "### Errors", *[f"- {e}" for e in syncer.errors]]
         with open(summary_path, "a") as fh:

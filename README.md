@@ -69,6 +69,8 @@ Everything is in [`config.yaml`](config.yaml), and each option is explained in c
 | `mapping.status` | ControlMap status → Lifecycle Manager status | see file |
 | `mapping.skip_statuses` | ControlMap statuses that never get an Initiative | Not Applicable |
 | `mapping.priority` | ControlMap priority → Lifecycle Manager priority | Critical/High → High |
+| `assignees.enabled` | Assign each Initiative to the LM user matching the ControlMap responsible person | `true` |
+| `assignees.overrides` | Pin a ControlMap email or name to a Lifecycle Manager email | none |
 
 If `config.yaml` has a mistake, the run stops immediately with a message saying what's wrong.
 
@@ -96,6 +98,7 @@ Edit the `cron` line in [`.github/workflows/sync.yml`](.github/workflows/sync.ym
 | Priority | Priority (via `mapping.priority`) |
 | Planned completion date, else due date, else planned start date, else roadmap (3/6/12 months) | Calendar quarter on the roadmap |
 | Effort in hours | Estimated hours |
+| Responsible person | Assigned user: matched by email, then by unique name, or via `assignees.overrides` |
 | Cost | One-time investment line `ControlMap AI-12 remediation` (other budget lines are kept) |
 
 Action Items with no dates or roadmap appear as unscheduled Initiatives.
