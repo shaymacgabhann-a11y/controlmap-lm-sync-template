@@ -47,16 +47,25 @@ jobs:
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "Running in $mode mode"
 
+      # Repos without a key yet (this template, or a fresh copy mid-setup) skip the nightly
+      # run quietly instead of failing every night; a manual run still explains what's missing.
       - name: Check API key
+        id: key
         env:
           SCALEPAD_API_KEY: ${{ secrets.SCALEPAD_API_KEY }}
         run: |
-          if [ -z "$SCALEPAD_API_KEY" ]; then
+          if [ -n "$SCALEPAD_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "::notice::No SCALEPAD_API_KEY secret yet, skipping the nightly run. See README step 2."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
             echo "::error::Add your ScalePad API key as a repository secret named SCALEPAD_API_KEY (Settings → Secrets and variables → Actions). See README step 2."
             exit 1
           fi
 
       - name: Sync
+        if: steps.key.outputs.present == 'true'
         env:
           SCALEPAD_API_KEY: ${{ secrets.SCALEPAD_API_KEY }}
         run: |
@@ -67,7 +76,7 @@ jobs:
           esac
 
       - name: Commit state
-        if: always() && steps.mode.outputs.mode == 'live'
+        if: always() && steps.mode.outputs.mode == 'live' && steps.key.outputs.present == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
